@@ -40,7 +40,7 @@ def send_message(bot, message):
     Принимает на вход два параметра:
     экземпляр класса Bot и строку с текстом сообщения.
     """
-
+    return bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
 
 def get_api_answer(current_timestamp):
     """Получает список домашних работ за определенный промежуток времени.
@@ -80,10 +80,10 @@ def check_response(response):
     if "homeworks" not in response:
         raise KeyError("В API ответе нет ключа 'homeworks'")
     homeworks_list = response.get("homeworks")
-    if homeworks_list is None:
-        raise CustomBotException("Список домашних работ пуст")
     if not isinstance(homeworks_list, list):
         raise TypeError("homeworks_list не является списком")
+    #if len(homeworks_list) == 0:
+    #    raise CustomBotException("Список домашних работ пуст")
     logging.debug("ответ API корректен")
     return homeworks_list[0]
 
@@ -99,12 +99,12 @@ def parse_status(homework):
     for key in keys:
         if key not in homework:
             raise KeyError(f"В словаре нет ключа {key}")
-    homework_status = homework["status"]
+    homework_status = homework[keys[1]]
     if homework_status not in HOMEWORK_STATUSES:
         message = f"{homework_status} - нет в списке статусов домашней работы"
         logging.error(message)
         raise CustomBotException(message)
-    homework_name = homework["homework_name"]
+    homework_name = homework[keys[0]]
     verdict = HOMEWORK_STATUSES[homework_status]
     logging.debug(f"Статус домашней работы: {verdict}")
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
@@ -118,30 +118,26 @@ def check_tokens():
 
 def main():
     """Основная логика работы бота."""
-    current_time = int(time.time()) - ONE_MONTH
-    f=get_api_answer(current_time)
-    s=check_response(f)
-    parse_status(s)
-#    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-#    current_timestamp = int(time.time())
-#
-#    ...
-#
-#    while True:
-#        try:
-#            response = ...
-#
-#            ...
-#
-#            current_timestamp = ...
-#            time.sleep(RETRY_TIME)
-#
-#        except Exception as error:
-#            message = f'Сбой в работе программы: {error}'
-#            ...
-#            time.sleep(RETRY_TIME)
-#        else:
-#            ...
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    current_timestamp = int(time.time())-ONE_MONTH
+    previous_message = None
+    while True:
+        try:
+            response = get_api_answer(current_timestamp)
+            current_timestamp = response["current_date"]
+            homework = check_response(response)
+            message = parse_status(homework)
+            if message != previous_message:
+                send_message(bot,message)
+                previous_message = message
+            time.sleep(RETRY_TIME)
+
+        except Exception as error:
+            message = f'Сбой в работе программы: {error}'
+            send_message(bot, message)
+            time.sleep(RETRY_TIME)
+        else:
+            time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':
