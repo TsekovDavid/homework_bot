@@ -27,7 +27,7 @@ HOMEWORK_STATUSES = {
 }
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
 
@@ -118,6 +118,10 @@ def check_tokens():
 
 def main():
     """Основная логика работы бота."""
+    if not check_tokens():
+        message("Отсутствуют переменные окружения")
+        logging.critical(message)
+        raise CustomBotException(message)
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())-ONE_MONTH
     previous_message = None
@@ -129,11 +133,15 @@ def main():
             message = parse_status(homework)
             if message != previous_message:
                 send_message(bot,message)
+                logging.info("Сообщение о статусе домашней работы отправлено")
                 previous_message = message
+            logging.debug(
+                "Статус проверки последней домашней работы не изменился")
             time.sleep(RETRY_TIME)
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
+            logging.error(message)
             send_message(bot, message)
             time.sleep(RETRY_TIME)
         else:
