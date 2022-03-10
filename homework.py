@@ -1,11 +1,12 @@
-import requests
 import json
-import os
-import telegram
-import time
 import logging
-from dotenv import load_dotenv
+import os
+import time
 from http import HTTPStatus
+
+import requests
+import telegram
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -31,16 +32,19 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
 
+
 class CustomBotException(Exception):
-    """Универсальное исключение для бота"""
+    """Универсальное исключение для бота."""
+
 
 def send_message(bot, message):
-    """Отправляет сообщение в Telegram чат,
-    определяемый переменной окружения TELEGRAM_CHAT_ID.
+    """Отправляет сообщение в Telegram чат.
+    Определяемый переменной окружения TELEGRAM_CHAT_ID.
     Принимает на вход два параметра:
     экземпляр класса Bot и строку с текстом сообщения.
     """
     return bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+
 
 def get_api_answer(current_timestamp):
     """Получает список домашних работ за определенный промежуток времени.
@@ -67,6 +71,7 @@ def get_api_answer(current_timestamp):
         logging.error(e)
     return response_json
 
+
 def check_response(response):
     """Проверяет ответ API на корректность.
     В качестве параметра функция получает ответ API,
@@ -82,8 +87,6 @@ def check_response(response):
     homeworks_list = response.get("homeworks")
     if not isinstance(homeworks_list, list):
         raise TypeError("homeworks_list не является списком")
-    #if len(homeworks_list) == 0:
-    #    raise CustomBotException("Список домашних работ пуст")
     logging.debug("ответ API корректен")
     return homeworks_list[0]
 
@@ -111,19 +114,21 @@ def parse_status(homework):
 
 
 def check_tokens():
-    """Проверка переменных окружения"""
+    """Проверка переменных окружения."""
     set = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-    return not None in set
+    if None in set:
+        return False
+    return True
 
 
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        message("Отсутствуют переменные окружения")
+        message = "Отсутствуют переменные окружения"
         logging.critical(message)
         raise CustomBotException(message)
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time())-ONE_MONTH
+    current_timestamp = int(time.time()) - ONE_MONTH
     previous_message = None
     while True:
         try:
@@ -132,7 +137,7 @@ def main():
             homework = check_response(response)
             message = parse_status(homework)
             if message != previous_message:
-                send_message(bot,message)
+                send_message(bot, message)
                 logging.info("Сообщение о статусе домашней работы отправлено")
                 previous_message = message
             logging.debug(
