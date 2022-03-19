@@ -20,7 +20,7 @@ HEADERS = {"Authorization": f"OAuth {PRACTICUM_TOKEN}"}
 CONNECTION_PROBLEM = (
     "Ошибка {error}\nпри попытке запроса к{url}\nс параметрами:"
     "\n{params}\n{headers}")
-TOKEN_IS_MISSING = "Переменная окружения - {token} - отсутствует."
+TOKEN_IS_MISSING = "Отсутствуют переменные окружения - {token}."
 SEND_MESSAGE = "Сообщение - {message} - отправлено."
 BAD_STATUS_CODE = (
     "Код-возврата <{status_code}> не соответсвует ожиданиям\n{url}\n"
@@ -62,29 +62,21 @@ def get_api_answer(current_timestamp):
     из формата JSON к типам данных Python
     """
     params = {"from_date": current_timestamp}
-    keys = ("code", "error")
+    request_params = dict(url=ENDPOINT, headers=HEADERS, params=params)
     try:
-        response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+        response = requests.get(**request_params)
     except requests.exceptions.RequestException as error:
-        raise CustomBotException(
-            CONNECTION_PROBLEM.format(
-                error=error, url=ENDPOINT, params=params, headers=HEADERS))
+        raise ConnectionError(
+            CONNECTION_PROBLEM.format(error=error, **request_params))
     if response.status_code != HTTPStatus.OK:
         raise ValueError(BAD_STATUS_CODE.format(
-            params=params,
-            url=ENDPOINT,
-            headers=HEADERS,
-            status_code=response.status_code))
+            **request_params, status_code=response.status_code))
     logging.info("Получен ответ от сервера")
     api_json = response.json()
-    for key in keys:
+    for key in ("code", "error"):
         if key in api_json:
             raise ValueError(API_TROUBLE.format(
-                url=ENDPOINT,
-                params=params,
-                headers=HEADERS,
-                key=key,
-                value=api_json.get(key)))
+                **request_params, key=key, value=api_json.get(key)))
     return api_json
 
 
@@ -130,19 +122,17 @@ def parse_status(homework):
 
 def check_tokens():
     """Проверка переменных окружения."""
-    is_error = True
-    for name in TOKENS:
-        if globals()[name] is None:
-            logging.critical(TOKEN_IS_MISSING.format(token=name))
-            is_error = False
-    return is_error
+    check_tokens = [token for token in TOKENS if globals()[token] is None]
+    if len(check_tokens) != 0:
+        logging.critical(TOKEN_IS_MISSING.format(token=check_tokens))
+        return False
+    return True
 
 
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
         message = "Отсутствуют переменные окружения"
-        logging.critical(message)
         raise ValueError(message)
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
@@ -166,9 +156,9 @@ def main():
                 logging.error(message)
                 try:
                     send_message(bot, message)
+                    previous_message = message
                 except CustomBotException as error:
                     logging.error(PROGRAM_FAILURE.format(error=error))
-                previous_message = message
         time.sleep(RETRY_TIME)
 
 
